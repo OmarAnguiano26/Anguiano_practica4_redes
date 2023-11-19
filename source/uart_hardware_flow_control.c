@@ -20,8 +20,11 @@
 #define DEMO_UART_CLK_FREQ CLOCK_GetFreq(UART1_CLK_SRC)
 
 #define DELAY_TIME         100000U
-#define TRANSFER_SIZE     256U    /*! Transfer dataSize */
-#define TRANSFER_BAUDRATE 115200U /*! Transfer baudrate - 115200 */
+#define TRANSFER_SIZE     4u//256U    /*! Transfer dataSize */
+#define TRANSFER_BAUDRATE 9600 /*! Transfer baudrate - 115200 */
+
+#define ID_MASK			   0x1
+#define MAX_SIZE		   9U
 
 typedef struct
 {
@@ -31,7 +34,7 @@ typedef struct
 typedef struct
 {
 	uint8_t length;
-	uint8_t data1; /*Can incresea the number of byte(from 0 to 8)**/
+	uint8_t data1;
 	uint8_t data2;
 	uint8_t data3;
 	uint8_t data4;
@@ -48,6 +51,11 @@ typedef struct
 /* UART user callback */
 void UART_UserCallback(UART_Type *base, uart_handle_t *handle, status_t status, void *userData);
 
+void LIN_Set_ID(uint8_t id, uint8_t length_control,lin_header_t* header);
+void LIN_init_response(lin_response_t* response);
+uint8_t LIN_Get_Checksum(lin_response_t cks);
+uint8_t LIN_lookup_response(lin_response_t* response, uint8_t id);
+
 /*******************************************************************************
  * Variables
  ******************************************************************************/
@@ -55,6 +63,14 @@ uint8_t transferRxData[TRANSFER_SIZE] = {0U};
 uint8_t transferTxData[TRANSFER_SIZE] = {0U};
 uart_handle_t g_uartHandle;
 volatile bool isTransferCompleted = false;
+
+lin_response_t messages;
+lin_header_t head;
+uint8_t LIN_slave_mailbox[TRANSFER_SIZE];
+uint8_t g_message_length;
+uint8_t LIN_master_mailbox[MAX_SIZE];
+uint8_t g_uart_master;
+uint8_t g_uart_slave;
 
 /*******************************************************************************
  * Code
@@ -99,10 +115,13 @@ int main(void)
     config.baudRate_Bps = BOARD_DEBUG_UART_BAUDRATE;
     config.enableTx     = true;
     config.enableRx     = true;
-    config.enableRxRTS  = true;
-    config.enableTxCTS  = true;
+   // config.enableRxRTS  = true;
+    //config.enableTxCTS  = true;
 
     UART_Init(DEMO_UART, &config, DEMO_UART_CLK_FREQ);
+    g_uart_master = master;
+    g_uart_slave = slave;
+
     UART_TransferCreateHandle(DEMO_UART, &g_uartHandle, UART_UserCallback, NULL);
 
     /* Set up the transfer data */
