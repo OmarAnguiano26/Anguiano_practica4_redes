@@ -10,6 +10,7 @@
 #include "board.h"
 #include "fsl_uart.h"
 #include "fsl_debug_console.h"
+#include "MK64F12.h"
 
 /*******************************************************************************
  * Definitions
@@ -119,8 +120,8 @@ int main(void)
     //config.enableTxCTS  = true;
 
     UART_Init(DEMO_UART, &config, DEMO_UART_CLK_FREQ);
-    g_uart_master = master;
-    g_uart_slave = slave;
+    g_uart_master = 1;//UART1
+    g_uart_slave = 4;//UART4
 
     UART_TransferCreateHandle(DEMO_UART, &g_uartHandle, UART_UserCallback, NULL);
 
@@ -151,25 +152,87 @@ int main(void)
     {
     }
 
-    for (i = 0U; i < TRANSFER_SIZE; i++)
-    {
-        if (transferTxData[i] != transferRxData[i])
-        {
-            errCount++;
-        }
-    }
-    if (errCount)
-    {
-        PRINTF("Data not matched! Transfer error.\r\n");
-    }
-    else
-    {
-        PRINTF("Data matched! Transfer successfully.\r\n");
-    }
-    /* Deinit the UART. */
-    UART_Deinit(DEMO_UART);
-
     while (1)
     {
     }
+}
+
+void LIN_Set_ID(uint8_t id, uint8_t length_control,lin_header_t* header)
+{
+
+	uint8_t parity_even = (( (id>>3) & ID_MASK ) ^ ( (id>>2) & ID_MASK ) ^ ( (id>>1) & ID_MASK ) ^
+						  ( (length_control>>1) & ID_MASK ) )&0x1;
+	uint8_t parity_odd = (~(( (id>>2) & ID_MASK ) ^ ( (id>>0) & ID_MASK ) ^ ( (length_control>>1) & ID_MASK ) ^
+						 ( (length_control>>0) & ID_MASK ) ) )&0x1;
+	header->ID = ((id << 4 )&0xF0) | ((length_control << 2)&0xC) | ((parity_even << 1)&0x2) |
+				 ((parity_odd)&0x1);
+}
+
+uint8_t LIN_Get_Checksum(lin_response_t cks)
+{
+	uint8_t temp_cks1 = cks.data1 + cks.data2;
+	if( (cks.data1 + cks.data2) > 0xFF )
+	{
+		temp_cks1 = temp_cks1 + 0x1;
+	}
+	uint8_t temp_cks2 = temp_cks1 + cks.data3;
+	if( (temp_cks1 + cks.data3) > 0xFF )
+	{
+		temp_cks2 = temp_cks2 + 0x1;
+	}
+	uint8_t temp_cks3 = temp_cks2 + cks.data4;
+	if( (temp_cks2 + cks.data4) > 0xFF )
+	{
+		temp_cks3 = temp_cks3 + 0x1;
+	}
+	uint8_t temp_cks4 = temp_cks3 + cks.data5;
+	if( (temp_cks3 + cks.data5) > 0xFF )
+	{
+		temp_cks4 = temp_cks4 + 0x1;
+	}
+	uint8_t temp_cks5 = temp_cks4 + cks.data6;
+	if( (temp_cks4 + cks.data6) > 0xFF )
+	{
+		temp_cks5 = temp_cks5 + 0x1;
+	}
+	uint8_t temp_cks6 = temp_cks5 + cks.data7;
+	if( (temp_cks5 + cks.data7) > 0xFF )
+	{
+		temp_cks6 = temp_cks6 + 0x1;
+	}
+	uint8_t temp_cks7 = temp_cks6 + cks.data8;
+	if( (temp_cks6 + cks.data8) > 0xFF )
+	{
+		temp_cks7 = temp_cks7 + 0x1;
+	}
+	temp_cks7 = ~(temp_cks7)+1;
+	return temp_cks7;
+}
+
+void LIN_handler(uint8_t uart_channel)
+{
+	uint8_t data;
+	static uint8_t amount = 0;
+	if(uart_channel == g_uart_master)
+	{
+		printf("IN MASTER %x\n",data);
+		LIN_master_mailbox[amount] = data;
+		amount++;
+		if(g_message_length+1 == amount)
+		{
+			amount = 0;
+			LIN_master_receive();
+		}
+	}
+	if(uart_channel == g_uart_slave)
+	{
+		printf("IN SLAVE %x \n", data);
+		LIN_slave_mailbox[amount] = data;
+		amount++;
+		if(TRANSFER_SIZE == amount)
+		{
+			amount = 0;
+			LIN_slave();
+		}
+	}
 }

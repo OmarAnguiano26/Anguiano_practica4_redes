@@ -1,0 +1,5 @@
+../source/uart_hardware_flow_control.c:80:6:UART_UserCallback	24	static
+../source/uart_hardware_flow_control.c:90:5:main	48	static
+../source/uart_hardware_flow_control.c:160:6:LIN_Set_ID	24	static
+../source/uart_hardware_flow_control.c:171:9:LIN_Get_Checksum	32	static
+../source/uart_hardware_flow_control.c:212:6:LIN_handler	24	static
