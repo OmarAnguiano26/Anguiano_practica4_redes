@@ -16,8 +16,11 @@
  * Definitions
  ******************************************************************************/
 /* UART instance and clock */
-#define DEMO_UART          UART1
-#define DEMO_UART_CLKSRC   UART1_CLK_SRC
+#define DEMO_UART          	UART1
+#define DEMO_UART_CLKSRC   	UART1_CLK_SRC
+#define SLAVE_UART_CLKSRC	UART4_CLK_SRC
+#define SLAVE_UART			UART4
+
 #define DEMO_UART_CLK_FREQ CLOCK_GetFreq(UART1_CLK_SRC)
 
 #define DELAY_TIME         100000U
@@ -56,6 +59,7 @@ void LIN_Set_ID(uint8_t id, uint8_t length_control,lin_header_t* header);
 void LIN_init_response(lin_response_t* response);
 uint8_t LIN_Get_Checksum(lin_response_t cks);
 uint8_t LIN_lookup_response(lin_response_t* response, uint8_t id);
+void LIN_master(uint8_t id, uint8_t length);
 
 /*******************************************************************************
  * Variables
@@ -157,6 +161,60 @@ int main(void)
     }
 }
 
+void LIN_master(uint8_t id, uint8_t length)
+{
+
+	/**Send Synch Break*/
+	uint8_t LIN_master_transferTx[TRANSFER_SIZE] = {0U};
+	/**Synch Break*/
+	LIN_master_transferTx[0] = 0x0;
+	LIN_master_transferTx[1] = 0x1;
+	/**Synch*/
+	LIN_master_transferTx[2] = 0x55;
+	/**ID*/
+	LIN_Set_ID(id, length ,&head);
+	LIN_master_transferTx[3] = head.ID;
+
+	uint8_t dummy = UART_WriteBlocking(UART1, LIN_master_transferTx, TRANSFER_SIZE);
+}
+
+void LIN_master_receive()
+{
+	/**Wait for response*/
+	uint8_t id_lenght = (( head.ID >> 2 )&0x3);
+	uint8_t message_length_master;
+	if((id_lenght == 0x0) || (id_lenght == 0x1 ))
+	{
+		message_length_master = 0x2;
+	}
+	else if(id_lenght == 0x2)
+	{
+		message_length_master = 0x4;
+	}
+	else
+	{
+		message_length_master = 0x8;
+	}
+	/***/
+	lin_response_t master_received;
+	uint8_t* data = &master_received.data1;
+	uint8_t status = UART_ReadBlocking(UART1, data, message_length_master);
+	for(int i = 0;i < message_length_master;i++,data++)
+	{
+		*data = LIN_master_mailbox[i];
+	}
+	uint8_t checksum = LIN_Get_Checksum(master_received);
+	if( ( LIN_master_mailbox[message_length_master] ) == checksum )
+	{
+		printf("SUCCESS !!!!!!!!!\n\r");
+	}
+	else
+	{
+		printf("SUCCESSn't !!!!!!!!!\n\r");
+	}
+}
+
+
 void LIN_Set_ID(uint8_t id, uint8_t length_control,lin_header_t* header)
 {
 
@@ -235,4 +293,39 @@ void LIN_handler(uint8_t uart_channel)
 			LIN_slave();
 		}
 	}
+}
+
+void LIN_init_response(lin_response_t* response)
+{
+	response->data1 = 0;
+	response->data2 = 0;
+	response->data3 = 0;
+	response->data4 = 0;
+	response->data5 = 0;
+	response->data6 = 0;
+	response->data7 = 0;
+	response->data8 = 0;
+}
+
+uint8_t LIN_lookup_response(lin_response_t* response, uint8_t id)
+{
+	uint8_t* dato = 0;
+	switch(id)
+	{
+	case 0x1:
+		dato = &(response->data1);
+
+		break;
+	case 0x2:
+		dato = &(response->data1);
+
+		break;
+	case 0x3:
+		dato = &(response->data1);
+
+		break;
+	default:
+		return 0;
+	}
+	return 1;
 }
